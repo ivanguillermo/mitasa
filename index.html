@@ -10,7 +10,7 @@
   <meta name="theme-color" content="#0f172a">
   <meta name="mobile-web-app-capable" content="yes">
   
-  <!-- Soporte para iOS (Safari) -->
+  <!-- Soporte iOS -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="BCV Dólar">
@@ -21,10 +21,12 @@
       --bg-color: #0f172a;
       --card-bg: #1e293b;
       --accent-color: #38bdf8;
+      --accent-hover: #0284c7;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
       --border-color: #334155;
       --input-bg: #0f172a;
+      --success-color: #4ade80;
     }
 
     * {
@@ -54,6 +56,9 @@
     header {
       text-align: center;
       padding: 8px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
     header h1 {
@@ -72,6 +77,28 @@
       margin-top: 4px;
     }
 
+    /* Botón de Instalación PWA */
+    .install-btn {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background-color: var(--accent-color);
+      color: #0f172a;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      margin-top: 10px;
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+      transition: transform 0.2s, background-color 0.2s;
+    }
+
+    .install-btn:active {
+      transform: scale(0.96);
+    }
+
     .card {
       background-color: var(--card-bg);
       border: 1px solid var(--border-color);
@@ -82,7 +109,7 @@
 
     .rate-box {
       text-align: center;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
     }
 
     .rate-box .label {
@@ -108,15 +135,35 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
-      margin-bottom: 16px;
+      margin-bottom: 18px;
     }
 
-    .field-group label {
+    .field-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .field-header label {
       font-size: 0.85rem;
       font-weight: 600;
       color: var(--text-muted);
-      display: flex;
-      justify-content: space-between;
+    }
+
+    /* Previsualización en tiempo real */
+    .live-preview {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--success-color);
+      background-color: rgba(74, 222, 128, 0.1);
+      padding: 2px 8px;
+      border-radius: 8px;
+      opacity: 0;
+      transition: opacity 0.2s ease-in-out;
+    }
+
+    .live-preview.visible {
+      opacity: 1;
     }
 
     input[type="number"],
@@ -156,6 +203,11 @@
     <header>
       <h1>Calculadora Dólar BCV</h1>
       <span id="statusBadge" class="badge">Cargando datos...</span>
+      
+      <!-- Botón dinámico de instalación PWA -->
+      <button id="installBtn" class="install-btn">
+        📲 Descargar Aplicación
+      </button>
     </header>
 
     <main class="card">
@@ -167,19 +219,27 @@
 
       <!-- Selector de Fecha -->
       <div class="field-group">
-        <label for="datePicker">Fecha de consulta</label>
+        <div class="field-header">
+          <label for="datePicker">Fecha de consulta</label>
+        </div>
         <input type="date" id="datePicker">
       </div>
 
       <!-- Conversión USD -> VES -->
       <div class="field-group">
-        <label for="usdInput">Dólares ($ USD)</label>
+        <div class="field-header">
+          <label for="usdInput">Dólares ($ USD)</label>
+          <span id="usdLivePreview" class="live-preview"></span>
+        </div>
         <input type="number" id="usdInput" placeholder="0.00" step="any" inputmode="decimal">
       </div>
 
       <!-- Conversión VES -> USD -->
       <div class="field-group">
-        <label for="vesInput">Bolívares (Bs. VES)</label>
+        <div class="field-header">
+          <label for="vesInput">Bolívares (Bs. VES)</label>
+          <span id="vesLivePreview" class="live-preview"></span>
+        </div>
         <input type="number" id="vesInput" placeholder="0.00" step="any" inputmode="decimal">
       </div>
     </main>
@@ -188,20 +248,24 @@
   </div>
 
   <script>
-    // URL DE TU WEB APP GOOGLE APPS SCRIPT
+    // URL de tu Google Apps Script
     const API_URL = "https://script.google.com/macros/s/AKfycbwW10ALclyp2NmAB7MJJuHiiYhXZammn4tAf_JS-nEoJqYME8W_CbPeFoV3rJA7yRKh/exec";
 
     let ratesMap = {};
     let currentActiveRate = 0;
-    let lastEditedInput = 'usd';
+    let deferredPrompt = null;
 
+    // Elementos DOM
     const usdInput = document.getElementById('usdInput');
     const vesInput = document.getElementById('vesInput');
+    const usdLivePreview = document.getElementById('usdLivePreview');
+    const vesLivePreview = document.getElementById('vesLivePreview');
     const datePicker = document.getElementById('datePicker');
     const rateDisplay = document.getElementById('rateDisplay');
     const dateAppliedDisplay = document.getElementById('dateAppliedDisplay');
     const statusBadge = document.getElementById('statusBadge');
     const footerStatus = document.getElementById('footerStatus');
+    const installBtn = document.getElementById('installBtn');
 
     document.addEventListener('DOMContentLoaded', () => {
       const hoyStr = getLocalDateString(new Date());
@@ -227,12 +291,6 @@
     }
 
     async function sincronizarDatos() {
-      if (API_URL.includes("API_URL")) {
-        footerStatus.textContent = "⚠️ Configura la URL de tu API en el código.";
-        statusBadge.textContent = "Falta API URL";
-        return;
-      }
-
       try {
         const response = await fetch(API_URL);
         const data = await response.json();
@@ -245,7 +303,7 @@
 
           localStorage.setItem('bcv_rates', JSON.stringify(ratesMap));
           statusBadge.textContent = "Actualizado";
-          footerStatus.textContent = `Última sincro: ${data.actualizado || 'Reciente'}`;
+          footerStatus.textContent = `Registros cargados: ${data.total_registros}`;
           actualizarTasaPorFecha(datePicker.value);
         }
       } catch (error) {
@@ -270,11 +328,7 @@
         }
       }
 
-      if (fechaPrevia) {
-        return { tasa: ratesMap[fechaPrevia], fechaExacta: fechaPrevia };
-      }
-
-      return null;
+      return fechaPrevia ? { tasa: ratesMap[fechaPrevia], fechaExacta: fechaPrevia } : null;
     }
 
     function actualizarTasaPorFecha(fechaSeleccionada) {
@@ -290,7 +344,7 @@
           dateAppliedDisplay.textContent = `Tasa del ${resultado.fechaExacta} (Último día hábil)`;
         }
 
-        recalcular();
+        recalcularLive('usd');
       } else {
         currentActiveRate = 0;
         rateDisplay.textContent = "--.--";
@@ -298,28 +352,79 @@
       }
     }
 
-    function recalcular() {
+    // Conversión e indicación en vivo
+    function recalcularLive(origen) {
       if (currentActiveRate <= 0) return;
 
-      if (lastEditedInput === 'usd') {
+      if (origen === 'usd') {
         const valUSD = parseFloat(usdInput.value);
-        vesInput.value = !isNaN(valUSD) ? (valUSD * currentActiveRate).toFixed(2) : '';
-      } else {
+        if (!isNaN(valUSD) && valUSD > 0) {
+          const resultadoBs = valUSD * currentActiveRate;
+          vesInput.value = resultadoBs.toFixed(2);
+          
+          usdLivePreview.textContent = `= ${resultadoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs.`;
+          usdLivePreview.classList.add('visible');
+          
+          vesLivePreview.textContent = '';
+          vesLivePreview.classList.remove('visible');
+        } else {
+          vesInput.value = '';
+          usdLivePreview.classList.remove('visible');
+        }
+      } else if (origen === 'ves') {
         const valVES = parseFloat(vesInput.value);
-        usdInput.value = !isNaN(valVES) ? (valVES / currentActiveRate).toFixed(2) : '';
+        if (!isNaN(valVES) && valVES > 0) {
+          const resultadoUSD = valVES / currentActiveRate;
+          usdInput.value = resultadoUSD.toFixed(2);
+          
+          vesLivePreview.textContent = `= $${resultadoUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          vesLivePreview.classList.add('visible');
+          
+          usdLivePreview.textContent = '';
+          usdLivePreview.classList.remove('visible');
+        } else {
+          usdInput.value = '';
+          vesLivePreview.classList.remove('visible');
+        }
       }
     }
 
-    usdInput.addEventListener('input', () => { lastEditedInput = 'usd'; recalcular(); });
-    vesInput.addEventListener('input', () => { lastEditedInput = 'ves'; recalcular(); });
-    datePicker.addEventListener('change', (e) => { actualizarTasaPorFecha(e.target.value); });
+    // Listeners de entrada instantánea
+    usdInput.addEventListener('input', () => recalcularLive('usd'));
+    vesInput.addEventListener('input', () => recalcularLive('ves'));
+    datePicker.addEventListener('change', (e) => actualizarTasaPorFecha(e.target.value));
 
-    // Registro del Service Worker para PWA
+    // --- Lógica de Instalación PWA ---
+    window.addEventListener('beforeinstallprompt', (e) => {
+      // Previene que Android/Chrome muestre el banner por defecto
+      e.preventDefault();
+      deferredPrompt = e;
+      // Muestra nuestro botón personalizado
+      installBtn.style.display = 'inline-flex';
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      if (outcome === 'accepted') {
+        installBtn.style.display = 'none';
+      }
+      deferredPrompt = null;
+    });
+
+    window.addEventListener('appinstalled', () => {
+      installBtn.style.display = 'none';
+      deferredPrompt = null;
+      console.log('PWA instalada con éxito');
+    });
+
     function registrarServiceWorker() {
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('SW registrado con éxito:', reg.scope))
             .catch(err => console.error('Error registrando SW:', err));
         });
       }
