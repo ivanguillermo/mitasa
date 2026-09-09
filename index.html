@@ -107,6 +107,37 @@
       box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
     }
 
+    /* Botones de Modo (Tasa del día / Ver tasa anterior) */
+    .mode-selector {
+      display: flex;
+      gap: 8px;
+      background-color: var(--input-bg);
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 16px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 10px 8px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .mode-btn.active {
+      background-color: var(--accent-color);
+      color: #0f172a;
+      font-weight: 700;
+      box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);
+    }
+
     .rate-box {
       text-align: center;
       margin-bottom: 20px;
@@ -211,16 +242,22 @@
     </header>
 
     <main class="card">
+      <!-- Selector de Modo: Hoy vs Histórico -->
+      <div class="mode-selector">
+        <button type="button" id="btnToday" class="mode-btn active">⚡ Tasa del Día</button>
+        <button type="button" id="btnHistory" class="mode-btn">📅 Ver Tasa Anterior</button>
+      </div>
+
       <div class="rate-box">
         <div class="label">Tasa Aplicada</div>
         <div class="value" id="rateDisplay">--.--</div>
         <div class="date-applied" id="dateAppliedDisplay">Seleccione una fecha</div>
       </div>
 
-      <!-- Selector de Fecha -->
-      <div class="field-group">
+      <!-- Selector de Fecha (Oculto por defecto en modo Tasa del Día) -->
+      <div class="field-group" id="dateGroup" style="display: none;">
         <div class="field-header">
-          <label for="datePicker">Fecha de consulta</label>
+          <label for="datePicker">Seleccionar fecha pasada</label>
         </div>
         <input type="date" id="datePicker">
       </div>
@@ -261,6 +298,9 @@
     const usdLivePreview = document.getElementById('usdLivePreview');
     const vesLivePreview = document.getElementById('vesLivePreview');
     const datePicker = document.getElementById('datePicker');
+    const dateGroup = document.getElementById('dateGroup');
+    const btnToday = document.getElementById('btnToday');
+    const btnHistory = document.getElementById('btnHistory');
     const rateDisplay = document.getElementById('rateDisplay');
     const dateAppliedDisplay = document.getElementById('dateAppliedDisplay');
     const statusBadge = document.getElementById('statusBadge');
@@ -304,7 +344,10 @@
           localStorage.setItem('bcv_rates', JSON.stringify(ratesMap));
           statusBadge.textContent = "Actualizado";
           footerStatus.textContent = `Registros cargados: ${data.total_registros}`;
-          actualizarTasaPorFecha(datePicker.value);
+          
+          // Mantener la selección actual del usuario
+          const fechaAConsultar = btnToday.classList.contains('active') ? getLocalDateString(new Date()) : datePicker.value;
+          actualizarTasaPorFecha(fechaAConsultar);
         }
       } catch (error) {
         console.error("Error al sincronizar:", error);
@@ -389,17 +432,34 @@
       }
     }
 
-    // Listeners de entrada instantánea
+    // --- Lógica de Cambio de Modo (Hoy vs Anterior) ---
+    btnToday.addEventListener('click', () => {
+      btnToday.classList.add('active');
+      btnHistory.classList.remove('active');
+      dateGroup.style.display = 'none'; // Oculta selector de fecha
+
+      const hoyStr = getLocalDateString(new Date());
+      datePicker.value = hoyStr;
+      actualizarTasaPorFecha(hoyStr);
+    });
+
+    btnHistory.addEventListener('click', () => {
+      btnHistory.classList.add('active');
+      btnToday.classList.remove('active');
+      dateGroup.style.display = 'flex'; // Muestra selector de fecha
+
+      actualizarTasaPorFecha(datePicker.value);
+    });
+
+    // Listeners de entrada
     usdInput.addEventListener('input', () => recalcularLive('usd'));
     vesInput.addEventListener('input', () => recalcularLive('ves'));
     datePicker.addEventListener('change', (e) => actualizarTasaPorFecha(e.target.value));
 
     // --- Lógica de Instalación PWA ---
     window.addEventListener('beforeinstallprompt', (e) => {
-      // Previene que Android/Chrome muestre el banner por defecto
       e.preventDefault();
       deferredPrompt = e;
-      // Muestra nuestro botón personalizado
       installBtn.style.display = 'inline-flex';
     });
 
