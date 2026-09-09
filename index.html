@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MiTasa</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --accent-color: #38bdf8;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: #334155;
+      --input-bg: #0f172a;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    header {
+      text-align: center;
+      padding: 8px 0;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      color: var(--accent-color);
+      background-color: rgba(56, 189, 248, 0.1);
+      padding: 4px 8px;
+      border-radius: 12px;
+      display: inline-block;
+      margin-top: 4px;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+    }
+
+    .rate-box {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .rate-box .label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .rate-box .value {
+      font-size: 2.25rem;
+      font-weight: 800;
+      color: var(--accent-color);
+      margin: 4px 0;
+    }
+
+    .rate-box .date-applied {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .field-group label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    input[type="number"],
+    input[type="date"] {
+      width: 100%;
+      background-color: var(--input-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-size: 1.15rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="number"]:focus,
+    input[type="date"]:focus {
+      border-color: var(--accent-color);
+    }
+
+    input[type="date"] {
+      color-scheme: dark;
+      font-size: 1rem;
+    }
+
+    .status {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <header>
+      <h1>Calculadora Dólar BCV</h1>
+      <span id="statusBadge" class="badge">Cargando datos...</span>
+    </header>
+
+    <main class="card">
+      <div class="rate-box">
+        <div class="label">Tasa Aplicada</div>
+        <div class="value" id="rateDisplay">--.--</div>
+        <div class="date-applied" id="dateAppliedDisplay">Seleccione una fecha</div>
+      </div>
+
+      <!-- Selector de Fecha -->
+      <div class="field-group">
+        <label for="datePicker">Fecha de consulta</label>
+        <input type="date" id="datePicker">
+      </div>
+
+      <!-- Conversión USD -> VES -->
+      <div class="field-group">
+        <label for="usdInput">Dólares ($ USD)</label>
+        <input type="number" id="usdInput" placeholder="0.00" step="any" inputmode="decimal">
+      </div>
+
+      <!-- Conversión VES -> USD -->
+      <div class="field-group">
+        <label for="vesInput">Bolívares (Bs. VES)</label>
+        <input type="number" id="vesInput" placeholder="0.00" step="any" inputmode="decimal">
+      </div>
+    </main>
+
+    <div class="status" id="footerStatus">Conectando con Google Sheets...</div>
+  </div>
+
+  <script>
+    // 1. REEMPLAZA ESTA URL CON TU WEB APP URL DE GOOGLE APPS SCRIPT
+    const API_URL = "https://script.google.com/macros/s/TU_SCRIPT_ID_AQUI/exec";
+
+    // Variables de estado
+    let ratesMap = {};
+    let currentActiveRate = 0;
+    let lastEditedInput = 'usd';
+
+    // Elementos DOM
+    const usdInput = document.getElementById('usdInput');
+    const vesInput = document.getElementById('vesInput');
+    const datePicker = document.getElementById('datePicker');
+    const rateDisplay = document.getElementById('rateDisplay');
+    const dateAppliedDisplay = document.getElementById('dateAppliedDisplay');
+    const statusBadge = document.getElementById('statusBadge');
+    const footerStatus = document.getElementById('footerStatus');
+
+    // Inicialización
+    document.addEventListener('DOMContentLoaded', () => {
+      // Establecer la fecha de hoy por defecto en el picker
+      const hoyStr = getLocalDateString(new Date());
+      datePicker.value = hoyStr;
+
+      // Intentar cargar datos almacenados localmente primero (Offline-first)
+      const cachedData = localStorage.getItem('bcv_rates');
+      if (cachedData) {
+        ratesMap = JSON.parse(cachedData);
+        actualizarTasaPorFecha(datePicker.value);
+        statusBadge.textContent = "Modo Offline (Caché)";
+      }
+
+      // Sincronizar con Google Sheets
+      sincronizarDatos();
+    });
+
+    // Obtener fecha actual YYYY-MM-DD según zona horaria local
+    function getLocalDateString(dateObj) {
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // Petición a la API de Apps Script
+    async function sincronizarDatos() {
+      if (API_URL.includes("https://script.google.com/macros/s/AKfycbwW10ALclyp2NmAB7MJJuHiiYhXZammn4tAf_JS-nEoJqYME8W_CbPeFoV3rJA7yRKh/exec")) {
+        footerStatus.textContent = "⚠️ Configura la URL de tu API en el código.";
+        statusBadge.textContent = "Falta API URL";
+        return;
+      }
+
+      try {
+        const response = await fetch(API_URL);
+        const data = await response.json();
+
+        if (data && data.datos) {
+          // Convertir el array a un mapa de claves { "2026-09-09": 36.45 }
+          ratesMap = {};
+          data.datos.forEach(item => {
+            ratesMap[item.fecha] = item.tasa;
+          });
+
+          // Guardar en almacenamiento local
+          localStorage.setItem('bcv_rates', JSON.stringify(ratesMap));
+          
+          statusBadge.textContent = "Actualizado";
+          footerStatus.textContent = `Última sincro: ${data.actualizado || 'Reciente'}`;
+
+          // Recalcular con los nuevos datos
+          actualizarTasaPorFecha(datePicker.value);
+        }
+      } catch (error) {
+        console.error("Error al sincronizar:", error);
+        footerStatus.textContent = "Error al conectar. Usando copia local.";
+        if (Object.keys(ratesMap).length === 0) {
+          statusBadge.textContent = "Sin conexión";
+        }
+      }
+    }
+
+    // Buscar la tasa para una fecha específica (o el día hábil previo más cercano)
+    function buscarTasa(fechaBuscada) {
+      if (ratesMap[fechaBuscada]) {
+        return { tasa: ratesMap[fechaBuscada], fechaExacta: fechaBuscada };
+      }
+
+      // Si es fin de semana o feriado y no hay registro, buscar el día anterior disponible
+      const fechasDisponibles = Object.keys(ratesMap).sort();
+      let fechaPrevia = null;
+
+      for (let f of fechasDisponibles) {
+        if (f <= fechaBuscada) {
+          fechaPrevia = f;
+        } else {
+          break;
+        }
+      }
+
+      if (fechaPrevia) {
+        return { tasa: ratesMap[fechaPrevia], fechaExacta: fechaPrevia };
+      }
+
+      return null;
+    }
+
+    // Actualiza la tasa según el datepicker
+    function actualizarTasaPorFecha(fechaSeleccionada) {
+      const resultado = buscarTasa(fechaSeleccionada);
+
+      if (resultado) {
+        currentActiveRate = resultado.tasa;
+        rateDisplay.textContent = `${currentActiveRate.toFixed(2)} Bs.`;
+
+        if (resultado.fechaExacta === fechaSeleccionada) {
+          dateAppliedDisplay.textContent = `Cotización del ${fechaSeleccionada}`;
+        } else {
+          dateAppliedDisplay.textContent = `Tasa del ${resultado.fechaExacta} (Último día hábil)`;
+        }
+
+        recalcular();
+      } else {
+        currentActiveRate = 0;
+        rateDisplay.textContent = "--.--";
+        dateAppliedDisplay.textContent = "Sin datos para esta fecha";
+      }
+    }
+
+    // Lógica de cálculo
+    function recalcular() {
+      if (currentActiveRate <= 0) return;
+
+      if (lastEditedInput === 'usd') {
+        const valUSD = parseFloat(usdInput.value);
+        if (!isNaN(valUSD)) {
+          vesInput.value = (valUSD * currentActiveRate).toFixed(2);
+        } else {
+          vesInput.value = '';
+        }
+      } else {
+        const valVES = parseFloat(vesInput.value);
+        if (!isNaN(valVES)) {
+          usdInput.value = (valVES / currentActiveRate).toFixed(2);
+        } else {
+          usdInput.value = '';
+        }
+      }
+    }
+
+    // Eventos
+    usdInput.addEventListener('input', () => {
+      lastEditedInput = 'usd';
+      recalcular();
+    });
+
+    vesInput.addEventListener('input', () => {
+      lastEditedInput = 'ves';
+      recalcular();
+    });
+
+    datePicker.addEventListener('change', (e) => {
+      actualizarTasaPorFecha(e.target.value);
+    });
+  </script>
+</body>
+</html>
