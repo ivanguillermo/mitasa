@@ -3,7 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MiTasa</title>
+  <title>Dólar BCV Calculadora</title>
+
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  
+  <!-- Soporte para iOS (Safari) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BCV Dólar">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
   <style>
     :root {
       --bg-color: #0f172a;
@@ -176,15 +188,13 @@
   </div>
 
   <script>
-    // 1. REEMPLAZA ESTA URL CON TU WEB APP URL DE GOOGLE APPS SCRIPT
+    // URL DE TU WEB APP GOOGLE APPS SCRIPT
     const API_URL = "https://script.google.com/macros/s/TU_SCRIPT_ID_AQUI/exec";
 
-    // Variables de estado
     let ratesMap = {};
     let currentActiveRate = 0;
     let lastEditedInput = 'usd';
 
-    // Elementos DOM
     const usdInput = document.getElementById('usdInput');
     const vesInput = document.getElementById('vesInput');
     const datePicker = document.getElementById('datePicker');
@@ -193,13 +203,11 @@
     const statusBadge = document.getElementById('statusBadge');
     const footerStatus = document.getElementById('footerStatus');
 
-    // Inicialización
     document.addEventListener('DOMContentLoaded', () => {
-      // Establecer la fecha de hoy por defecto en el picker
       const hoyStr = getLocalDateString(new Date());
       datePicker.value = hoyStr;
 
-      // Intentar cargar datos almacenados localmente primero (Offline-first)
+      // Cargar datos locales de inmediato (Offline-first)
       const cachedData = localStorage.getItem('bcv_rates');
       if (cachedData) {
         ratesMap = JSON.parse(cachedData);
@@ -207,11 +215,10 @@
         statusBadge.textContent = "Modo Offline (Caché)";
       }
 
-      // Sincronizar con Google Sheets
       sincronizarDatos();
+      registrarServiceWorker();
     });
 
-    // Obtener fecha actual YYYY-MM-DD según zona horaria local
     function getLocalDateString(dateObj) {
       const year = dateObj.getFullYear();
       const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -219,7 +226,6 @@
       return `${year}-${month}-${day}`;
     }
 
-    // Petición a la API de Apps Script
     async function sincronizarDatos() {
       if (API_URL.includes("https://script.google.com/macros/s/AKfycbwW10ALclyp2NmAB7MJJuHiiYhXZammn4tAf_JS-nEoJqYME8W_CbPeFoV3rJA7yRKh/exec")) {
         footerStatus.textContent = "⚠️ Configura la URL de tu API en el código.";
@@ -232,37 +238,27 @@
         const data = await response.json();
 
         if (data && data.datos) {
-          // Convertir el array a un mapa de claves { "2026-09-09": 36.45 }
           ratesMap = {};
           data.datos.forEach(item => {
             ratesMap[item.fecha] = item.tasa;
           });
 
-          // Guardar en almacenamiento local
           localStorage.setItem('bcv_rates', JSON.stringify(ratesMap));
-          
           statusBadge.textContent = "Actualizado";
           footerStatus.textContent = `Última sincro: ${data.actualizado || 'Reciente'}`;
-
-          // Recalcular con los nuevos datos
           actualizarTasaPorFecha(datePicker.value);
         }
       } catch (error) {
         console.error("Error al sincronizar:", error);
-        footerStatus.textContent = "Error al conectar. Usando copia local.";
-        if (Object.keys(ratesMap).length === 0) {
-          statusBadge.textContent = "Sin conexión";
-        }
+        footerStatus.textContent = "Sin conexión. Usando datos guardados.";
       }
     }
 
-    // Buscar la tasa para una fecha específica (o el día hábil previo más cercano)
     function buscarTasa(fechaBuscada) {
       if (ratesMap[fechaBuscada]) {
         return { tasa: ratesMap[fechaBuscada], fechaExacta: fechaBuscada };
       }
 
-      // Si es fin de semana o feriado y no hay registro, buscar el día anterior disponible
       const fechasDisponibles = Object.keys(ratesMap).sort();
       let fechaPrevia = null;
 
@@ -281,7 +277,6 @@
       return null;
     }
 
-    // Actualiza la tasa según el datepicker
     function actualizarTasaPorFecha(fechaSeleccionada) {
       const resultado = buscarTasa(fechaSeleccionada);
 
@@ -303,41 +298,32 @@
       }
     }
 
-    // Lógica de cálculo
     function recalcular() {
       if (currentActiveRate <= 0) return;
 
       if (lastEditedInput === 'usd') {
         const valUSD = parseFloat(usdInput.value);
-        if (!isNaN(valUSD)) {
-          vesInput.value = (valUSD * currentActiveRate).toFixed(2);
-        } else {
-          vesInput.value = '';
-        }
+        vesInput.value = !isNaN(valUSD) ? (valUSD * currentActiveRate).toFixed(2) : '';
       } else {
         const valVES = parseFloat(vesInput.value);
-        if (!isNaN(valVES)) {
-          usdInput.value = (valVES / currentActiveRate).toFixed(2);
-        } else {
-          usdInput.value = '';
-        }
+        usdInput.value = !isNaN(valVES) ? (valVES / currentActiveRate).toFixed(2) : '';
       }
     }
 
-    // Eventos
-    usdInput.addEventListener('input', () => {
-      lastEditedInput = 'usd';
-      recalcular();
-    });
+    usdInput.addEventListener('input', () => { lastEditedInput = 'usd'; recalcular(); });
+    vesInput.addEventListener('input', () => { lastEditedInput = 'ves'; recalcular(); });
+    datePicker.addEventListener('change', (e) => { actualizarTasaPorFecha(e.target.value); });
 
-    vesInput.addEventListener('input', () => {
-      lastEditedInput = 'ves';
-      recalcular();
-    });
-
-    datePicker.addEventListener('change', (e) => {
-      actualizarTasaPorFecha(e.target.value);
-    });
+    // Registro del Service Worker para PWA
+    function registrarServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('SW registrado con éxito:', reg.scope))
+            .catch(err => console.error('Error registrando SW:', err));
+        });
+      }
+    }
   </script>
 </body>
 </html>
