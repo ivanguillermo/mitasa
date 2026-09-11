@@ -5,12 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Dólar BCV Calculadora</title>
 
-  <!-- PWA Meta Tags -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f172a">
   <meta name="mobile-web-app-capable" content="yes">
   
-  <!-- Soporte iOS -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="BCV Dólar">
@@ -21,7 +19,6 @@
       --bg-color: #0f172a;
       --card-bg: #1e293b;
       --accent-color: #38bdf8;
-      --accent-hover: #0284c7;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
       --border-color: #334155;
@@ -64,7 +61,6 @@
     header h1 {
       font-size: 1.25rem;
       font-weight: 700;
-      color: var(--text-main);
     }
 
     .badge {
@@ -73,30 +69,7 @@
       background-color: rgba(56, 189, 248, 0.1);
       padding: 4px 8px;
       border-radius: 12px;
-      display: inline-block;
       margin-top: 4px;
-    }
-
-    /* Botón de Instalación PWA */
-    .install-btn {
-      display: none;
-      align-items: center;
-      gap: 6px;
-      background-color: var(--accent-color);
-      color: #0f172a;
-      border: none;
-      padding: 10px 18px;
-      border-radius: 20px;
-      font-weight: 700;
-      font-size: 0.85rem;
-      cursor: pointer;
-      margin-top: 10px;
-      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
-      transition: transform 0.2s, background-color 0.2s;
-    }
-
-    .install-btn:active {
-      transform: scale(0.96);
     }
 
     .card {
@@ -105,37 +78,6 @@
       border-radius: 16px;
       padding: 20px;
       box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-    }
-
-    /* Botones de Modo (Tasa del día / Ver tasa anterior) */
-    .mode-selector {
-      display: flex;
-      gap: 8px;
-      background-color: var(--input-bg);
-      padding: 4px;
-      border-radius: 12px;
-      border: 1px solid var(--border-color);
-      margin-bottom: 16px;
-    }
-
-    .mode-btn {
-      flex: 1;
-      padding: 10px 8px;
-      border: none;
-      border-radius: 8px;
-      background: transparent;
-      color: var(--text-muted);
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .mode-btn.active {
-      background-color: var(--accent-color);
-      color: #0f172a;
-      font-weight: 700;
-      box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);
     }
 
     .rate-box {
@@ -151,7 +93,7 @@
     }
 
     .rate-box .value {
-      font-size: 2.25rem;
+      font-size: 2.5rem;
       font-weight: 800;
       color: var(--accent-color);
       margin: 4px 0;
@@ -181,7 +123,6 @@
       color: var(--text-muted);
     }
 
-    /* Previsualización en tiempo real */
     .live-preview {
       font-size: 0.85rem;
       font-weight: 700;
@@ -190,15 +131,14 @@
       padding: 2px 8px;
       border-radius: 8px;
       opacity: 0;
-      transition: opacity 0.2s ease-in-out;
+      transition: opacity 0.2s;
     }
 
     .live-preview.visible {
       opacity: 1;
     }
 
-    input[type="number"],
-    input[type="date"] {
+    input[type="number"] {
       width: 100%;
       background-color: var(--input-bg);
       border: 1px solid var(--border-color);
@@ -207,17 +147,27 @@
       border-radius: 12px;
       font-size: 1.15rem;
       outline: none;
-      transition: border-color 0.2s;
     }
 
-    input[type="number"]:focus,
-    input[type="date"]:focus {
+    input[type="number"]:focus {
       border-color: var(--accent-color);
     }
 
-    input[type="date"] {
-      color-scheme: dark;
-      font-size: 1rem;
+    .refresh-btn {
+      width: 100%;
+      background-color: var(--accent-color);
+      color: #0f172a;
+      border: none;
+      padding: 12px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .refresh-btn:active {
+      opacity: 0.8;
     }
 
     .status {
@@ -233,33 +183,14 @@
   <div class="app-container">
     <header>
       <h1>Calculadora Dólar BCV</h1>
-      <span id="statusBadge" class="badge">Cargando datos...</span>
-      
-      <!-- Botón dinámico de instalación PWA -->
-      <button id="installBtn" class="install-btn">
-        📲 Descargar Aplicación
-      </button>
+      <span id="statusBadge" class="badge">Conectando...</span>
     </header>
 
     <main class="card">
-      <!-- Selector de Modo: Hoy vs Histórico -->
-      <div class="mode-selector">
-        <button type="button" id="btnToday" class="mode-btn active">⚡ Tasa del Día</button>
-        <button type="button" id="btnHistory" class="mode-btn">📅 Ver Tasa Anterior</button>
-      </div>
-
       <div class="rate-box">
-        <div class="label">Tasa Aplicada</div>
+        <div class="label">Tasa Celda D1</div>
         <div class="value" id="rateDisplay">--.--</div>
-        <div class="date-applied" id="dateAppliedDisplay">Seleccione una fecha</div>
-      </div>
-
-      <!-- Selector de Fecha (Oculto por defecto en modo Tasa del Día) -->
-      <div class="field-group" id="dateGroup" style="display: none;">
-        <div class="field-header">
-          <label for="datePicker">Seleccionar fecha pasada</label>
-        </div>
-        <input type="date" id="datePicker">
+        <div class="date-applied" id="dateAppliedDisplay">Obteniendo valor...</div>
       </div>
 
       <!-- Conversión USD -> VES -->
@@ -279,123 +210,71 @@
         </div>
         <input type="number" id="vesInput" placeholder="0.00" step="any" inputmode="decimal">
       </div>
+
+      <button type="button" id="btnRefresh" class="refresh-btn">🔄 Actualizar Tasa</button>
     </main>
 
-    <div class="status" id="footerStatus">Conectando con Google Sheets...</div>
+    <div class="status" id="footerStatus">Conectado a Google Sheets</div>
   </div>
 
   <script>
-    // URL de tu Google Apps Script
-    const API_URL = "https://script.google.com/macros/s/AKfycbwW10ALclyp2NmAB7MJJuHiiYhXZammn4tAf_JS-nEoJqYME8W_CbPeFoV3rJA7yRKh/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbwWAQDN-ymAmOlnWm1haSAtjL5JayIKKQ_jukTdfldbbN2E8HcEtzLHaasw7I1jziGB/exec";
 
-    let ratesMap = {};
     let currentActiveRate = 0;
-    let deferredPrompt = null;
 
-    // Elementos DOM
     const usdInput = document.getElementById('usdInput');
     const vesInput = document.getElementById('vesInput');
     const usdLivePreview = document.getElementById('usdLivePreview');
     const vesLivePreview = document.getElementById('vesLivePreview');
-    const datePicker = document.getElementById('datePicker');
-    const dateGroup = document.getElementById('dateGroup');
-    const btnToday = document.getElementById('btnToday');
-    const btnHistory = document.getElementById('btnHistory');
     const rateDisplay = document.getElementById('rateDisplay');
     const dateAppliedDisplay = document.getElementById('dateAppliedDisplay');
     const statusBadge = document.getElementById('statusBadge');
-    const footerStatus = document.getElementById('footerStatus');
-    const installBtn = document.getElementById('installBtn');
+    const btnRefresh = document.getElementById('btnRefresh');
 
     document.addEventListener('DOMContentLoaded', () => {
-      const hoyStr = getLocalDateString(new Date());
-      datePicker.value = hoyStr;
-
-      // Cargar datos locales de inmediato (Offline-first)
-      const cachedData = localStorage.getItem('bcv_rates');
-      if (cachedData) {
-        ratesMap = JSON.parse(cachedData);
-        actualizarTasaPorFecha(datePicker.value);
-        statusBadge.textContent = "Modo Offline (Caché)";
+      // Cargar caché local
+      const cachedRate = localStorage.getItem('bcv_rate_d1');
+      if (cachedRate) {
+        currentActiveRate = parseFloat(cachedRate);
+        rateDisplay.textContent = `${currentActiveRate.toFixed(2)} Bs.`;
+        statusBadge.textContent = "Caché Local";
       }
 
-      sincronizarDatos();
-      registrarServiceWorker();
+      obtenerTasaD1();
     });
 
-    function getLocalDateString(dateObj) {
-      const year = dateObj.getFullYear();
-      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-      const day = String(dateObj.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
-
-    async function sincronizarDatos() {
+    async function obtenerTasaD1() {
+      statusBadge.textContent = "Cargando...";
       try {
         const response = await fetch(API_URL);
         const data = await response.json();
 
-        if (data && data.datos) {
-          ratesMap = {};
-          data.datos.forEach(item => {
-            ratesMap[item.fecha] = item.tasa;
-          });
+        if (data && data.tasa) {
+          // Convertir el valor de la celda a número (por si llega formateado con comas o texto)
+          let rawValue = data.tasa.toString().replace(',', '.');
+          currentActiveRate = parseFloat(rawValue);
 
-          localStorage.setItem('bcv_rates', JSON.stringify(ratesMap));
-          statusBadge.textContent = "Actualizado";
-          footerStatus.textContent = `Registros cargados: ${data.total_registros}`;
-          
-          // Mantener la selección actual del usuario
-          const fechaAConsultar = btnToday.classList.contains('active') ? getLocalDateString(new Date()) : datePicker.value;
-          actualizarTasaPorFecha(fechaAConsultar);
+          if (!isNaN(currentActiveRate)) {
+            rateDisplay.textContent = `${currentActiveRate.toFixed(2)} Bs.`;
+            dateAppliedDisplay.textContent = `Actualizado: ${data.fecha || 'Hoy'}`;
+            statusBadge.textContent = "Conectado";
+            localStorage.setItem('bcv_rate_d1', currentActiveRate);
+            
+            recalcularLive('usd');
+          } else {
+            rateDisplay.textContent = "Error";
+            dateAppliedDisplay.textContent = "El valor en D1 no es un número válido";
+          }
         }
       } catch (error) {
-        console.error("Error al sincronizar:", error);
-        footerStatus.textContent = "Sin conexión. Usando datos guardados.";
-      }
-    }
-
-    function buscarTasa(fechaBuscada) {
-      if (ratesMap[fechaBuscada]) {
-        return { tasa: ratesMap[fechaBuscada], fechaExacta: fechaBuscada };
-      }
-
-      const fechasDisponibles = Object.keys(ratesMap).sort();
-      let fechaPrevia = null;
-
-      for (let f of fechasDisponibles) {
-        if (f <= fechaBuscada) {
-          fechaPrevia = f;
-        } else {
-          break;
+        console.error("Error obteniendo D1:", error);
+        statusBadge.textContent = "Sin conexión";
+        if (currentActiveRate > 0) {
+          dateAppliedDisplay.textContent = "Usando última tasa guardada";
         }
       }
-
-      return fechaPrevia ? { tasa: ratesMap[fechaPrevia], fechaExacta: fechaPrevia } : null;
     }
 
-    function actualizarTasaPorFecha(fechaSeleccionada) {
-      const resultado = buscarTasa(fechaSeleccionada);
-
-      if (resultado) {
-        currentActiveRate = resultado.tasa;
-        rateDisplay.textContent = `${currentActiveRate.toFixed(2)} Bs.`;
-
-        if (resultado.fechaExacta === fechaSeleccionada) {
-          dateAppliedDisplay.textContent = `Cotización del ${fechaSeleccionada}`;
-        } else {
-          dateAppliedDisplay.textContent = `Tasa del ${resultado.fechaExacta} (Último día hábil)`;
-        }
-
-        recalcularLive('usd');
-      } else {
-        currentActiveRate = 0;
-        rateDisplay.textContent = "--.--";
-        dateAppliedDisplay.textContent = "Sin datos para esta fecha";
-      }
-    }
-
-    // Conversión e indicación en vivo
     function recalcularLive(origen) {
       if (currentActiveRate <= 0) return;
 
@@ -407,8 +286,6 @@
           
           usdLivePreview.textContent = `= ${resultadoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs.`;
           usdLivePreview.classList.add('visible');
-          
-          vesLivePreview.textContent = '';
           vesLivePreview.classList.remove('visible');
         } else {
           vesInput.value = '';
@@ -422,8 +299,6 @@
           
           vesLivePreview.textContent = `= $${resultadoUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
           vesLivePreview.classList.add('visible');
-          
-          usdLivePreview.textContent = '';
           usdLivePreview.classList.remove('visible');
         } else {
           usdInput.value = '';
@@ -432,63 +307,9 @@
       }
     }
 
-    // --- Lógica de Cambio de Modo (Hoy vs Anterior) ---
-    btnToday.addEventListener('click', () => {
-      btnToday.classList.add('active');
-      btnHistory.classList.remove('active');
-      dateGroup.style.display = 'none'; // Oculta selector de fecha
-
-      const hoyStr = getLocalDateString(new Date());
-      datePicker.value = hoyStr;
-      actualizarTasaPorFecha(hoyStr);
-    });
-
-    btnHistory.addEventListener('click', () => {
-      btnHistory.classList.add('active');
-      btnToday.classList.remove('active');
-      dateGroup.style.display = 'flex'; // Muestra selector de fecha
-
-      actualizarTasaPorFecha(datePicker.value);
-    });
-
-    // Listeners de entrada
     usdInput.addEventListener('input', () => recalcularLive('usd'));
     vesInput.addEventListener('input', () => recalcularLive('ves'));
-    datePicker.addEventListener('change', (e) => actualizarTasaPorFecha(e.target.value));
-
-    // --- Lógica de Instalación PWA ---
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      installBtn.style.display = 'inline-flex';
-    });
-
-    installBtn.addEventListener('click', async () => {
-      if (!deferredPrompt) return;
-      
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      
-      if (outcome === 'accepted') {
-        installBtn.style.display = 'none';
-      }
-      deferredPrompt = null;
-    });
-
-    window.addEventListener('appinstalled', () => {
-      installBtn.style.display = 'none';
-      deferredPrompt = null;
-      console.log('PWA instalada con éxito');
-    });
-
-    function registrarServiceWorker() {
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js')
-            .catch(err => console.error('Error registrando SW:', err));
-        });
-      }
-    }
+    btnRefresh.addEventListener('click', obtenerTasaD1);
   </script>
 </body>
 </html>
