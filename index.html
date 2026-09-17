@@ -244,36 +244,46 @@
     });
 
     async function obtenerTasaD1() {
-      statusBadge.textContent = "Cargando...";
-      try {
-        const response = await fetch(API_URL);
-        const data = await response.json();
+  statusBadge.textContent = "Cargando...";
+  try {
+    const response = await fetch(API_URL);
+    const data = await response.json();
 
-        if (data && data.tasa) {
-          // Convertir el valor de la celda a número (por si llega formateado con comas o texto)
-          let rawValue = data.tasa.toString().replace(',', '.');
-          currentActiveRate = parseFloat(rawValue);
+    // 1. Usar la clave "tasa_d1" que realmente devuelve tu Google Apps Script
+    const valorTasa = data.tasa_d1 || data.tasa;
 
-          if (!isNaN(currentActiveRate)) {
-            rateDisplay.textContent = `${currentActiveRate.toFixed(2)} Bs.`;
-            dateAppliedDisplay.textContent = `Actualizado: ${data.fecha || 'Hoy'}`;
-            statusBadge.textContent = "Conectado";
-            localStorage.setItem('bcv_rate_d1', currentActiveRate);
-            
-            recalcularLive('usd');
-          } else {
-            rateDisplay.textContent = "Error";
-            dateAppliedDisplay.textContent = "El valor en D1 no es un número válido";
-          }
-        }
-      } catch (error) {
-        console.error("Error obteniendo D1:", error);
-        statusBadge.textContent = "Sin conexión";
-        if (currentActiveRate > 0) {
-          dateAppliedDisplay.textContent = "Usando última tasa guardada";
-        }
+    if (valorTasa !== undefined && valorTasa !== null) {
+      // 2. Limpieza de string a número por si llega con formato de coma
+      let rawValue = valorTasa.toString().replace(',', '.');
+      currentActiveRate = parseFloat(rawValue);
+
+      if (!isNaN(currentActiveRate)) {
+        rateDisplay.textContent = `${currentActiveRate.toFixed(2)} Bs.`;
+        
+        // 3. Usar la clave "actualizado" del JSON
+        const fechaTexto = data.actualizado ? data.actualizado.substring(0, 10) : 'Hoy';
+        dateAppliedDisplay.textContent = `Actualizado: ${fechaTexto}`;
+        
+        statusBadge.textContent = "Conectado";
+        localStorage.setItem('bcv_rate_d1', currentActiveRate);
+        
+        recalcularLive('usd');
+      } else {
+        rateDisplay.textContent = "Error";
+        dateAppliedDisplay.textContent = "El valor en D1 no es un número válido";
       }
+    } else {
+      rateDisplay.textContent = "Error";
+      dateAppliedDisplay.textContent = "No se recibió el campo tasa_d1";
     }
+  } catch (error) {
+    console.error("Error obteniendo D1:", error);
+    statusBadge.textContent = "Sin conexión";
+    if (currentActiveRate > 0) {
+      dateAppliedDisplay.textContent = "Usando última tasa guardada";
+    }
+  }
+}
 
     function recalcularLive(origen) {
       if (currentActiveRate <= 0) return;
