@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="BCV Dólar">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="mitasa.png">
 
   <style>
     :root {
@@ -70,6 +70,34 @@
       padding: 4px 8px;
       border-radius: 12px;
       margin-top: 4px;
+    }
+
+    /* Pestañas de Navegación */
+    .tab-container {
+      display: flex;
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 4px;
+      gap: 4px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background-color: var(--accent-color);
+      color: #0f172a;
     }
 
     .card {
@@ -138,7 +166,7 @@
       opacity: 1;
     }
 
-    input[type="number"] {
+    input[type="number"], input[type="date"] {
       width: 100%;
       background-color: var(--input-bg);
       border: 1px solid var(--border-color);
@@ -149,7 +177,12 @@
       outline: none;
     }
 
-    input[type="number"]:focus {
+    input[type="date"] {
+      font-size: 1rem;
+      color-scheme: dark;
+    }
+
+    input[type="number"]:focus, input[type="date"]:focus {
       border-color: var(--accent-color);
     }
 
@@ -176,6 +209,10 @@
       color: var(--text-muted);
       margin-top: 8px;
     }
+
+    .history-selector {
+      margin-bottom: 20px;
+    }
   </style>
 </head>
 <body>
@@ -186,9 +223,23 @@
       <span id="statusBadge" class="badge">Conectando...</span>
     </header>
 
+    <!-- Control de Pestañas -->
+    <div class="tab-container">
+      <button type="button" class="tab-btn active" id="tabHoyBtn">Tasa de Hoy</button>
+      <button type="button" class="tab-btn" id="tabHistorialBtn">Consultar Histórico</button>
+    </div>
+
     <main class="card">
+      <!-- Selector de Fecha para modo Histórico -->
+      <div class="field-group history-selector" id="historyDateGroup" style="display: none;">
+        <div class="field-header">
+          <label for="historyDateInput">Seleccionar Fecha Pasada</label>
+        </div>
+        <input type="date" id="historyDateInput">
+      </div>
+
       <div class="rate-box">
-        <div class="label">Tasa Celda D1</div>
+        <div class="label" id="rateLabel">Tasa de Hoy</div>
         <div class="value" id="rateDisplay">--.--</div>
         <div class="date-applied" id="dateAppliedDisplay">Obteniendo valor...</div>
       </div>
@@ -221,72 +272,163 @@
     const API_URL = "https://script.google.com/macros/s/AKfycbwWAQDN-ymAmOlnWm1haSAtjL5JayIKKQ_jukTdfldbbN2E8HcEtzLHaasw7I1jziGB/exec";
 
     let currentActiveRate = 0;
+    let todayRate = 0;
+    let todayDateStr = "";
+    let historicoData = [];
+    let currentMode = "today"; // "today" o "history"
 
     const usdInput = document.getElementById('usdInput');
     const vesInput = document.getElementById('vesInput');
     const usdLivePreview = document.getElementById('usdLivePreview');
     const vesLivePreview = document.getElementById('vesLivePreview');
     const rateDisplay = document.getElementById('rateDisplay');
+    const rateLabel = document.getElementById('rateLabel');
     const dateAppliedDisplay = document.getElementById('dateAppliedDisplay');
     const statusBadge = document.getElementById('statusBadge');
     const btnRefresh = document.getElementById('btnRefresh');
 
+    const tabHoyBtn = document.getElementById('tabHoyBtn');
+    const tabHistorialBtn = document.getElementById('tabHistorialBtn');
+    const historyDateGroup = document.getElementById('historyDateGroup');
+    const historyDateInput = document.getElementById('historyDateInput');
+
     document.addEventListener('DOMContentLoaded', () => {
-      // Cargar caché local
-      const cachedRate = localStorage.getItem('bcv_rate_d1');
-      if (cachedRate) {
-        currentActiveRate = parseFloat(cachedRate);
-        rateDisplay.textContent = `${currentActiveRate.toFixed(2)} Bs.`;
-        statusBadge.textContent = "Caché Local";
+      // Intentar cargar caché local
+      const cachedData = localStorage.getItem('bcv_full_payload');
+      if (cachedData) {
+        try {
+          const parsed = JSON.parse(cachedData);
+          procesarRespuestaServidor(parsed);
+          statusBadge.textContent = "Caché Local";
+        } catch(e) {
+          console.error("Error parseando caché local", e);
+        }
       }
 
       obtenerTasaD1();
     });
 
     async function obtenerTasaD1() {
-  statusBadge.textContent = "Cargando...";
-  try {
-    const response = await fetch(API_URL);
-    const data = await response.json();
+      statusBadge.textContent = "Cargando...";
+      try {
+        const response = await fetch(API_URL);
+        const data = await response.json();
 
-    // 1. Usar la clave "tasa_d1" que realmente devuelve tu Google Apps Script
-    const valorTasa = data.tasa_d1 || data.tasa;
-
-    if (valorTasa !== undefined && valorTasa !== null) {
-      // 2. Limpieza de string a número por si llega con formato de coma
-      let rawValue = valorTasa.toString().replace(',', '.');
-      currentActiveRate = parseFloat(rawValue);
-
-      if (!isNaN(currentActiveRate)) {
-        rateDisplay.textContent = `${currentActiveRate.toFixed(2)} Bs.`;
-        
-        // 3. Usar la clave "actualizado" del JSON
-        const fechaTexto = data.actualizado ? data.actualizado.substring(0, 10) : 'Hoy';
-        dateAppliedDisplay.textContent = `Actualizado: ${fechaTexto}`;
-        
-        statusBadge.textContent = "Conectado";
-        localStorage.setItem('bcv_rate_d1', currentActiveRate);
-        
-        recalcularLive('usd');
-      } else {
-        rateDisplay.textContent = "Error";
-        dateAppliedDisplay.textContent = "El valor en D1 no es un número válido";
+        if (data) {
+          localStorage.setItem('bcv_full_payload', JSON.stringify(data));
+          procesarRespuestaServidor(data);
+          statusBadge.textContent = "Conectado";
+        }
+      } catch (error) {
+        console.error("Error obteniendo datos:", error);
+        statusBadge.textContent = "Sin conexión";
+        if (currentActiveRate > 0) {
+          dateAppliedDisplay.textContent = "Usando datos guardados";
+        }
       }
-    } else {
-      rateDisplay.textContent = "Error";
-      dateAppliedDisplay.textContent = "No se recibió el campo tasa_d1";
     }
-  } catch (error) {
-    console.error("Error obteniendo D1:", error);
-    statusBadge.textContent = "Sin conexión";
-    if (currentActiveRate > 0) {
-      dateAppliedDisplay.textContent = "Usando última tasa guardada";
+
+    function procesarRespuestaServidor(data) {
+      // 1. Tasa del día
+      const valorTasa = data.tasa_d1 || data.tasa;
+      if (valorTasa !== undefined && valorTasa !== null) {
+        let rawValue = valorTasa.toString().replace(',', '.');
+        todayRate = parseFloat(rawValue);
+      }
+      
+      todayDateStr = data.actualizado ? data.actualizado.substring(0, 10) : 'Hoy';
+
+      // 2. Histórico de registros
+      historicoData = Array.isArray(data.datos) ? data.datos : [];
+
+      // 3. Renderizar según el modo seleccionado
+      if (currentMode === "today") {
+        mostrarTasaHoy();
+      } else {
+        buscarTasaPorFecha();
+      }
     }
-  }
-}
+
+    function mostrarTasaHoy() {
+      currentActiveRate = todayRate;
+      rateLabel.textContent = "Tasa Celda D1 (Hoy)";
+      if (currentActiveRate > 0) {
+        rateDisplay.textContent = `${currentActiveRate.toFixed(2)} Bs.`;
+        dateAppliedDisplay.textContent = `Actualizado: ${todayDateStr}`;
+      } else {
+        rateDisplay.textContent = "--.--";
+        dateAppliedDisplay.textContent = "Sin datos de la tasa de hoy";
+      }
+      recalcularLive('usd');
+    }
+
+    function buscarTasaPorFecha() {
+      const fechaSeleccionada = historyDateInput.value;
+      if (!fechaSeleccionada) {
+        rateDisplay.textContent = "--.--";
+        dateAppliedDisplay.textContent = "Selecciona una fecha válida";
+        currentActiveRate = 0;
+        recalcularLive('usd');
+        return;
+      }
+
+      // Buscar la fecha seleccionada en el arreglo
+      const registroEncontrado = historicoData.find(item => {
+        if (!item.fecha) return false;
+        const fechaItem = item.fecha.substring(0, 10);
+        return fechaItem === fechaSeleccionada;
+      });
+
+      if (registroEncontrado) {
+        currentActiveRate = parseFloat(registroEncontrado.tasa);
+        rateLabel.textContent = `Tasa del ${fechaSeleccionada}`;
+        rateDisplay.textContent = `${currentActiveRate.toFixed(2)} Bs.`;
+        dateAppliedDisplay.textContent = `Registro encontrado en histórico`;
+      } else {
+        currentActiveRate = 0;
+        rateLabel.textContent = `Sin registro`;
+        rateDisplay.textContent = "--.--";
+        dateAppliedDisplay.textContent = `No hay tasa guardada para el ${fechaSeleccionada}`;
+      }
+      
+      recalcularLive('usd');
+    }
+
+    // Navegación de Pestañas
+    tabHoyBtn.addEventListener('click', () => {
+      currentMode = "today";
+      tabHoyBtn.classList.add('active');
+      tabHistorialBtn.classList.remove('active');
+      historyDateGroup.style.display = "none";
+      mostrarTasaHoy();
+    });
+
+    tabHistorialBtn.addEventListener('click', () => {
+      currentMode = "history";
+      tabHistorialBtn.classList.add('active');
+      tabHoyBtn.classList.remove('active');
+      historyDateGroup.style.display = "flex";
+
+      // Si el input no tiene fecha seleccionada, poner la de hoy por defecto
+      if (!historyDateInput.value) {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        historyDateInput.value = `${year}-${month}-${day}`;
+      }
+
+      buscarTasaPorFecha();
+    });
+
+    historyDateInput.addEventListener('change', buscarTasaPorFecha);
 
     function recalcularLive(origen) {
-      if (currentActiveRate <= 0) return;
+      if (currentActiveRate <= 0) {
+        usdLivePreview.classList.remove('visible');
+        vesLivePreview.classList.remove('visible');
+        return;
+      }
 
       if (origen === 'usd') {
         const valUSD = parseFloat(usdInput.value);
@@ -320,20 +462,15 @@
     usdInput.addEventListener('input', () => recalcularLive('usd'));
     vesInput.addEventListener('input', () => recalcularLive('ves'));
     btnRefresh.addEventListener('click', obtenerTasaD1);
-  </script>
-  <script>
-    // Registrar Service Worker
+
+    // Registro del Service Worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('SW registrado con éxito:', reg.scope))
-          .catch(err => console.error('Error al registrar SW:', err));
+          .then(reg => console.log('SW registrado:', reg.scope))
+          .catch(err => console.error('Error en SW:', err));
       });
     }
-
-    const API_URL = "https://script.google.com/macros/s/AKfycbwWAQDN-ymAmOlnWm1haSAtjL5JayIKKQ_jukTdfldbbN2E8HcEtzLHaasw7I1jziGB/exec";
-    // ... resto de tu JavaScript actual ...
   </script>
-</body>
 </body>
 </html>
